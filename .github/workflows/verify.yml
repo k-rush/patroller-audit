@@ -1,0 +1,75 @@
+name: Verify
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore backend/PatrollerAudit.slnx --locked-mode
+      - run: dotnet format backend/PatrollerAudit.slnx --verify-no-changes --no-restore
+      - run: dotnet test backend/PatrollerAudit.slnx -c Release --no-restore --logger trx --results-directory artifacts/backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-results
+          path: artifacts/backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p artifacts
+          az bicep build --file infrastructure/main.bicep --outfile artifacts/main.json
+          az bicep build --file infrastructure/app.bicep --outfile artifacts/app.json
+          docker compose config --quiet
+          docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+
+  packaged-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start real emulators and packaged app
+        shell: pwsh
+        run: ./scripts/Start-Local.ps1
+      - name: Check shell and operational endpoints
+        shell: pwsh
+        run: ./scripts/Test-Local.ps1
+      - name: Container diagnostics
+        if: failure()
+        run: docker compose logs --tail 100
+      - name: Stop only this project's containers, preserving data volumes
+        if: always()
+        run: docker compose down

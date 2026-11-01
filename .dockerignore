@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/bin
+**/obj
+**/dist
+**/coverage
+artifacts
+.env*
+**/.env*
+**/appsettings.Local.json
+**/*.pem
+**/*.pfx

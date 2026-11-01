@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PatrollerAudit.Api.Tests/PatrollerAudit.Api.Tests.csproj" />
+  <Project Path="PatrollerAudit.Api/PatrollerAudit.Api.csproj" />
+</Solution>

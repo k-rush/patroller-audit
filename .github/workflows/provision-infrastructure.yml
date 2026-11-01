@@ -1,0 +1,65 @@
+name: Provision infrastructure
+on:
+  workflow_dispatch:
+    inputs:
+      rings:
+        description: Cumulative approved cloud rings
+        type: choice
+        options: [test, test-staging, test-staging-production]
+        default: test
+      apply:
+        description: Apply after reviewing a prior what-if run
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Preview or apply dedicated application resources
+        shell: pwsh
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          NAME_PREFIX: ${{ vars.NAME_PREFIX }}
+          BUILD_PRINCIPAL_ID: ${{ vars.BUILD_PRINCIPAL_ID }}
+          RINGS: ${{ inputs.rings }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($key in @('RESOURCE_GROUP', 'NAME_PREFIX', 'BUILD_PRINCIPAL_ID')) {
+            if (-not [Environment]::GetEnvironmentVariable($key)) { throw "$key is required." }
+          }
+          $rings = switch ($env:RINGS) {
+            'test' { @('test') }
+            'test-staging' { @('test', 'staging') }
+            'test-staging-production' { @('test', 'staging', 'production') }
+          }
+          $parameters = @{
+            namePrefix = @{ value = $env:NAME_PREFIX }
+            buildPrincipalId = @{ value = $env:BUILD_PRINCIPAL_ID }
+            rings = @{ value = @($rings) }
+          }
+          New-Item -ItemType Directory artifacts -Force | Out-Null
+          @{ parameters = $parameters } | ConvertTo-Json -Depth 10 | Set-Content artifacts/parameters.json
+          $operation = if ($env:APPLY -eq 'true') { 'create' } else { 'what-if' }
+          az deployment group $operation --resource-group $env:RESOURCE_GROUP --template-file infrastructure/main.bicep --parameters '@artifacts/parameters.json'
+          if ($LASTEXITCODE -ne 0) { throw 'Infrastructure deployment failed.' }

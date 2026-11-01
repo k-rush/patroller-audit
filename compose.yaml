@@ -1,0 +1,76 @@
+name: patroller-audit-local
+
+services:
+  cosmos-emulator:
+    image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-latest@sha256:2db1f9e74c506bcf6fc347aa937aea1c00fa756061296a5a9efba530ce86ec02
+    command: ["--protocol", "https", "--enable-explorer", "false"]
+    environment:
+      GATEWAY_PUBLIC_ENDPOINT: cosmos-emulator
+      ENABLE_TELEMETRY: "false"
+      ENABLE_OTLP_EXPORTER: "false"
+      ENABLE_INIT_DATA: "false"
+    ports:
+      - "127.0.0.1:${COSMOS_PORT:-18081}:8081"
+      - "127.0.0.1:${COSMOS_HEALTH_PORT:-18082}:8080"
+    volumes:
+      - cosmos-data:/data
+    mem_limit: 3g
+    restart: "no"
+
+  cosmos-certificate:
+    image: node:22-bookworm-slim
+    command: ["node", "/scripts/cosmos-certificate.mjs"]
+    environment:
+      COSMOS_CERT_PATH: /emulator-certs/emulator.pem
+    volumes:
+      - ./scripts/local:/scripts:ro
+      - cosmos-certificates:/emulator-certs
+    depends_on:
+      cosmos-emulator:
+        condition: service_started
+    restart: "no"
+
+  firebase-auth-emulator:
+    build:
+      context: ./infrastructure/local/firebase
+    environment:
+      FIREBASE_PROJECT_ID: demo-patroller-audit-local
+    ports:
+      - "127.0.0.1:${FIREBASE_AUTH_PORT:-19099}:9099"
+      - "127.0.0.1:${FIREBASE_UI_PORT:-14000}:4000"
+    volumes:
+      - firebase-data:/workspace/data
+    mem_limit: 1g
+    stop_grace_period: 45s
+    restart: "no"
+
+  app:
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:${API_PORT:-18080}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Emulator__Enabled: "true"
+      Emulator__CertificatePath: /emulator-certs/emulator.pem
+      CosmosDb__DatabaseName: patroller-audit-local
+      # Microsoft's public emulator key; not a cloud credential.
+      CosmosDb__ConnectionString: AccountEndpoint=https://cosmos-emulator:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;
+      Auth__ProjectId: demo-patroller-audit-local
+      Auth__EmulatorEnabled: "true"
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth-emulator:9099
+    volumes:
+      - cosmos-certificates:/emulator-certs:ro
+    depends_on:
+      cosmos-certificate:
+        condition: service_completed_successfully
+      firebase-auth-emulator:
+        condition: service_started
+    mem_limit: 1g
+    restart: "no"
+
+volumes:
+  cosmos-data:
+  cosmos-certificates:
+  firebase-data:
