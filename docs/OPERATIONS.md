@@ -52,8 +52,13 @@ Before running delivery workflows:
    reviewers for infrastructure and staging/production; disable self-approval
    where supported.
    Workflow `environment:` declarations alone do **not** configure these rules.
-4. Configure Azure service principals with GitHub OIDC federation using subjects
-   `repo:k-rush/patroller-audit:environment:<environment>`, with issuer
+4. Configure Azure service principals with GitHub OIDC federation using the exact
+   subject prefix returned by
+   `gh api repos/k-rush/patroller-audit/actions/oidc/customization/sub`.
+   This repository uses immutable subjects:
+   `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:<environment>`.
+   Append `:environment:<environment>` to `sub_claim_prefix`; do not substitute
+   the legacy name-only subject. Use issuer
    `https://token.actions.githubusercontent.com` and audience
    `api://AzureADTokenExchange`. Monitoring needs no Azure identity. Grant the infrastructure
    principal only the resource-group rights needed to provision resources and
