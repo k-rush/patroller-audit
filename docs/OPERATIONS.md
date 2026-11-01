@@ -44,25 +44,34 @@ Before running delivery workflows:
    Firebase Authentication. Do not reuse another application's projects. Sign-in providers,
    authorized domains, UI configuration, and customer identity policies are
    deferred until authentication features are designed.
-3. Create GitHub environments `infrastructure`, `build`, `test`, `staging`, and
-   `production`. Restrict them to `main`; require reviewers for infrastructure
-   changes and staging/production, disable self-approval where supported.
+3. Create GitHub environments `infrastructure`, `build`, `test`, `staging`,
+   `production`, and `test-monitor`. Restrict infrastructure, test, and monitoring
+   to `main`. Allow build on `main` and promotion tags; allow staging on `main`
+   and `staging-v*`, and production on `main` and `production-v*`. The main branch
+   allowances support approved manual redeployments and rollbacks. Require
+   reviewers for infrastructure and staging/production; disable self-approval
+   where supported.
    Workflow `environment:` declarations alone do **not** configure these rules.
 4. Configure Azure service principals with GitHub OIDC federation using subjects
-   `repo:k-rush/patroller-audit:environment:<environment>`. Grant the infrastructure
+   `repo:k-rush/patroller-audit:environment:<environment>`, with issuer
+   `https://token.actions.githubusercontent.com` and audience
+   `api://AzureADTokenExchange`. Monitoring needs no Azure identity. Grant the infrastructure
    principal only the resource-group rights needed to provision resources and
    assign roles. Grant the build principal AcrPush through the foundation. Grant
    deploy principals resource-group deployment/Container Apps rights and registry
-   read access needed by deployment checks. Avoid subscription-wide ownership.
+   read access needed by deployment checks, plus read-only access to the preceding
+   ring's app/revision metadata. Avoid subscription-wide ownership.
 5. Set `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` for each
    environment. Set `AZURE_RESOURCE_GROUP` and stable lowercase alphanumeric
-   `NAME_PREFIX` (3-10 characters, example `patrolapp`) for infrastructure and
+   `NAME_PREFIX` (3-10 lowercase alphanumeric characters, beginning with a letter;
+   example `patrolapp`) for infrastructure and
    ring environments. Set `BUILD_PRINCIPAL_ID` to the build principal's **object**
    ID in infrastructure. Set `ACR_NAME` and `ACR_LOGIN_SERVER` from foundation
-   outputs for build, and `ACR_NAME` for each ring. Set a distinct
+   outputs for build and each ring. Set a distinct
    `FIREBASE_PROJECT_ID` for each ring.
 6. Protect `main` using a branch ruleset requiring pull requests and the Verify
-   jobs. Enable Dependabot alerts and secret scanning where available.
+   jobs. Protect `staging-v*` and `production-v*` tag creation/update/deletion
+   with tag rulesets. Enable Dependabot alerts and secret scanning where available.
 
 GitHub repository settings and Firebase cloud projects need this administrative
 bootstrap; they are not implicitly provisioned by the Azure templates.
@@ -85,23 +94,81 @@ Private networking, alerts, retention/privacy policies, and a customer launch
 review are required before real patrol data is accepted. Provisioned Cosmos
 throughput and minimum app replicas incur cost even with no users.
 
-Run **Publish image** on `main`. It first calls Verify, then builds and publishes
-`patroller-audit:<commit-sha>` with SBOM/provenance. Copy the resulting immutable
-`sha256:...` digest from the workflow summary.
+After provisioning and setting environment variables, set repository variable
+`ENABLE_TEST_DEPLOYMENT=true`. **Deploy test** listens for a successful Verify
+run from a main push in this repository, builds that exact verified commit, locks
+its registry tag against overwrite/deletion, and deploys test by digest. PR runs,
+forks, failed CI, and reusable/manual Verify calls do not trigger publication.
+Automatic publication stays disabled until explicitly enabled.
 
-Run **Deploy ring** with that digest, starting at test. It validates registry
-existence and checks health after deployment. Staging and production additionally
-require that the exact digest is currently deployed and healthy in the preceding
-ring. Environment reviewers must confirm the digest comes from a successful
-Publish image run; registry existence alone is not provenance verification.
-Promotion does not rebuild the image.
+**Publish image** remains available on `main` for initial/manual publication; it
+calls Verify and the same reusable **Build image** workflow. Existing locked
+commit images are reused, not rebuilt. SBOM/provenance are included. Optionally
+set `ENABLE_GITHUB_ATTESTATIONS=true` if repository/plan support permits attestations.
+Manual **Deploy test** resolves the already-published current-main image and
+never builds an unverified replacement.
+
+Promote a verified release commit using matching version tags:
+
+```powershell
+git tag staging-v0.1.0 <verified-main-commit>
+git push origin staging-v0.1.0
+# After staging is accepted:
+git tag production-v0.1.0 <same-verified-main-commit>
+git push origin production-v0.1.0
+```
+
+**Promote release** requires the tagged commit to be merged into main. Production
+requires the matching staging version tag on the same commit. Both resolve the
+locked commit image without rebuilding and require that the preceding ring's
+active, healthy revision actually serves that exact image, not merely that the
+latest app template mentions it.
+
+**Deploy ring** remains an approval-gated manual redeployment path. Supply both
+the published commit SHA and its digest (SHA defaults to current main). It checks
+main ancestry, verifies the commit-to-digest mapping, and applies the same
+preceding-ring and deployment gates. It cannot invent an unpublished image.
+
+| Workflow | Purpose |
+|---|---|
+| Verify | Backend/frontend/script tests, workflow lint, Bicep compilation, and real local emulator checks |
+| Provision infrastructure | Manual Azure what-if/apply and applied registry output summary |
+| Build image | Reusable immutable publication with OIDC, SBOM/provenance, and locked commit tags |
+| Publish image | Manual verified publication |
+| Deploy test | Opt-in automatic post-CI test delivery; manual existing-image retry |
+| Promote release | Protected staging/production version-tag promotion |
+| Deploy ring | Approved manual immutable redeployment |
+| Rollback ring | Restore a retained known-good revision under target-ring approval |
+| Monitor test | Opt-in scheduled read-only hosted checks |
+
+There are deliberately no business-data seeding, compliance scanning, authenticated
+write synthetics, or persona/browser workflow jobs while the app has no product features.
 
 ## Rollback and diagnostics
 
-Redeploy a prior known-good digest with Deploy ring. For staging/production, the
-preceding ring must first be restored to the same digest. This is an explicit
-operator rollback, not automatic recovery; single-revision mode switches traffic
-once Azure considers the new revision ready. No data migrations exist yet.
+Normal deployment snapshots the previous serving revision before applying.
+Multiple-revision mode routes to the latest ready revision. Gates confirm the
+candidate revision and exact digest are serving, then check liveness, Cosmos
+readiness, the packaged SPA/assets, and unknown-API 404 behavior. Failed gates
+restore and check the previous healthy revision, then deactivate the failed
+candidate. Successful deployments deactivate the previous revision to avoid
+idle replica charges while retaining up to ten inactive revisions.
+
+For an operator rollback, run **Rollback ring** on main with a retained
+known-good revision name and reason. Target-ring reviewers approve the exception
+to the preceding-ring promotion requirement. The workflow validates app/registry
+ownership, activates and checks the target before routing traffic, then runs
+read-only gates. If rollback gates fail, it restores original traffic. Deployment
+and rollback state snapshots are retained as workflow artifacts for 14 days.
+A failed first deployment has no prior revision to restore; its workflow reports
+that explicitly. No data migrations exist yet.
+
+Set `BASE_URL` in `test-monitor` to the test HTTPS root URL and repository variable
+`ENABLE_TEST_MONITORING=true` to enable **Monitor test** every 30 minutes. Manual
+monitoring can run before enabling the schedule. This job performs no writes and
+needs no Azure/Firebase credentials. Workflow failures are operator-visible;
+configure workflow notifications separately. It does not provision Azure alert
+rules or validate real Firebase sign-in.
 
 Use Container Apps revision logs and ring Application Insights for diagnostics.
 For local failures, run `docker compose ps` and `docker compose logs --tail 100`.

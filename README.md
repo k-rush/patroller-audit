@@ -51,6 +51,8 @@ it is deliberately not invoked by the placeholder UI.
 dotnet restore backend\PatrollerAudit.slnx --locked-mode
 dotnet format backend\PatrollerAudit.slnx --verify-no-changes --no-restore
 dotnet test backend\PatrollerAudit.slnx -c Release --no-restore
+$scriptTests = (Get-ChildItem scripts\tests\*.test.mjs).FullName
+node --test $scriptTests
 Set-Location frontend
 npm ci
 npm run lint
@@ -65,8 +67,10 @@ against the real local emulators. Dependency lockfiles are committed inputs.
 
 See [operations](docs/OPERATIONS.md) for Azure OIDC/GitHub environment setup,
 infrastructure previews, immutable image publication, promotion, and rollback.
-Cloud deployment is **manual and approval-gated**, not triggered by checkout or
-a push. Configure GitHub environment protections before enabling workflows.
+Cloud provisioning is manual. Once explicitly enabled, successful main CI builds
+and deploys test automatically; protected version tags promote the same image to
+staging and production. Configure GitHub environment protections and OIDC before
+setting `ENABLE_TEST_DEPLOYMENT=true`. Checkout alone never provisions resources.
 
 `infrastructure\main.bicep` defines the registry, telemetry, and isolated ring
 foundations. `infrastructure\app.bicep` deploys an immutable image with managed
