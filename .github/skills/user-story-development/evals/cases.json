@@ -1,0 +1,51 @@
+[
+  {
+    "id": "interactive-discovery",
+    "prompt": "Draft a supervisor's incident-review journey. Explain discovery and approval without assuming an implemented role, incident API, or authoritative existing screen.",
+    "required": [["one persona"], ["ask_user"], ["not automatic user approval"], ["consolidated review"], ["open questions"], ["feature-free"]],
+    "minimumRequired": 5,
+    "forbidden": ["the current UI is the approved requirement"]
+  },
+  {
+    "id": "documentation-only-model-impact",
+    "prompt": "Document historical work attribution with no implementation. The product has no domain model yet. Explain proposed model impact and unknown attribution.",
+    "required": [["data-model impact assessment"], ["Performer versus recorder"], ["propose", "proposed"], ["without editing production schemas or code"], ["historical attribution"]],
+    "minimumRequired": 5,
+    "forbidden": ["invent historical performers", "implement the schema immediately without approval"]
+  },
+  {
+    "id": "approved-story-needs-schema",
+    "prompt": "An explicitly approved feature separates completion from success and shared evidence from private drafts. Explain model/API/UI work and rollout.",
+    "required": [["state versus outcome"], ["ETag scope", "Aggregate boundaries"], ["API DTOs"], ["frontend types"], ["migration/backfill"], ["rollout order", "Schema prerequisites"], ["audit history"]],
+    "minimumRequired": 6,
+    "forbidden": ["a UI-only patch is sufficient", "overwrite historical evidence"]
+  },
+  {
+    "id": "superseded-collaboration-decision",
+    "prompt": "A patroller story changes from exclusive editing to concurrent edits. Explain superseded decisions, conflict recovery, and acceptance evidence without inventing an ETag policy.",
+    "required": [["superseding"], ["ETags"], ["reconciliation", "retained input"], ["One active work item", "one concurrent editor"], ["obsolete screenshots"], ["autosave", "private saves"]],
+    "minimumRequired": 5,
+    "forbidden": ["automatically overwrite conflicts", "keep the exclusive lease as an unstated requirement"]
+  },
+  {
+    "id": "open-domain-boundary",
+    "prompt": "A patroller journey depends on supervisor closure/reopening rules that have not been settled. Explain why the whole journey cannot yet be called implementation-ready.",
+    "required": [["open questions"], ["not implementation-ready", "blocking questions"], ["supervisor"], ["attestation", "physical verification"], ["user authorization", "with the user"]],
+    "minimumRequired": 5,
+    "forbidden": ["assume closure always starts a new incident", "silently expand into supervisor"]
+  },
+  {
+    "id": "walkthrough-and-screenshots",
+    "prompt": "An approved feature needs implementation and screenshots. Explain trustworthy acceptance evidence without real injury records or mockup-only proof.",
+    "required": [["traceability", "criterion ID"], ["authenticated API CRUD"], ["Cosmos DB"], ["Firebase Auth"], ["repeatable browser scenario"], ["alt text", "captions"], ["credentials", "medical data"], ["smallest relevant tests"]],
+    "minimumRequired": 7,
+    "forbidden": ["use mockups as implementation evidence", "screenshots prove concurrency safety"]
+  },
+  {
+    "id": "publication-and-ticket-boundary",
+    "prompt": "Draft a new story without publication. Explain how to avoid inheriting another story's ticket, port numbers, process steps, or concurrency assumptions.",
+    "required": [["user authorization", "user-supplied"], ["ticket"], ["fixed ports", "stack names and ports"], ["process steps", "process steps"], ["Draft"], ["documentation-only"]],
+    "minimumRequired": 5,
+    "forbidden": ["push without authorization", "reuse another story's ticket automatically"]
+  }
+]

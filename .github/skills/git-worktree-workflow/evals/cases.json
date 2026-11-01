@@ -1,0 +1,30 @@
+[
+  {
+    "id": "starting-new-change",
+    "prompt": "Start a new bug fix without disturbing the primary checkout. Explain the branch, base, path, and status checks.",
+    "required": [["git status"], ["git worktree add"], ["origin/main"], ["fix/", "chore/", "feat/"], ["sibling", "..\\patroller-audit"]],
+    "minimumRequired": 4,
+    "forbidden": ["commit your existing changes for you", "git reset --hard on the current branch"]
+  },
+  {
+    "id": "dirty-checkout",
+    "prompt": "There are unrelated edits in the current checkout. Explain how to start separate work without committing or stashing them.",
+    "required": [["leave", "preserving", "preserve"], ["separate branch/worktree", "new worktree"], ["origin/main"], ["unrelated"]],
+    "minimumRequired": 3,
+    "forbidden": ["git stash the existing changes", "git reset --hard to clean it up"]
+  },
+  {
+    "id": "parallel-branches",
+    "prompt": "Two branches need independent testing while the primary app remains running. Explain build artifacts and complete Compose isolation.",
+    "required": [["git worktree add"], ["own frontend node_modules", "npm ci"], ["COMPOSE_PROJECT_NAME"], ["COSMOS_PORT"], ["FIREBASE_AUTH_PORT"], ["outside the primary clone"]],
+    "minimumRequired": 5,
+    "forbidden": ["share the same node_modules folder", "stop an unrelated stack to free its ports"]
+  },
+  {
+    "id": "cleanup-after-merge",
+    "prompt": "A branch was squash-merged. Explain safe worktree/branch cleanup without losing unpushed work.",
+    "required": [["git worktree remove"], ["git branch -d"], ["git worktree prune"], ["confirm", "user confirms"], ["Squash merges"]],
+    "minimumRequired": 4,
+    "forbidden": ["force delete without checking for unpushed work"]
+  }
+]

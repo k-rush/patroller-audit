@@ -63,6 +63,30 @@ npm test
 The Verify workflow runs these checks, compiles Bicep, and boots the packaged app
 against the real local emulators. Dependency lockfiles are committed inputs.
 
+## Agent skills
+
+Repository skills cover [Azure investigation](.github/skills/azure-observability-investigator/SKILL.md),
+[local development and deployment](.github/skills/deployment-dev-loop/SKILL.md),
+[isolated worktrees](.github/skills/git-worktree-workflow/SKILL.md),
+[pre-commit review](.github/skills/pre-commit-review/SKILL.md), and
+[user-story development](.github/skills/user-story-development/SKILL.md).
+They describe the current foundation and do not authorize feature implementation
+or publication.
+
+Run all deterministic instruction-coverage evaluations:
+
+```powershell
+Get-ChildItem .github\skills\*\evals\run.mjs | ForEach-Object { node $_.FullName }
+node --test scripts\tests\skill-evals.test.mjs
+```
+
+Each runner accepts `--case=<id>`. Default checks verify instruction coverage,
+not model behavior or application correctness, and run in Verify's existing
+script test suite. Opt-in `--live` evaluations require explicit AI-credit
+authorization and an authenticated Copilot CLI; they assess tool-disabled plans,
+not actual service access. A behavioral failure may retry once, using up to two
+CLI calls per selected case. No model is pinned.
+
 ## Delivery and configuration
 
 See [operations](docs/OPERATIONS.md) for Azure OIDC/GitHub environment setup,
