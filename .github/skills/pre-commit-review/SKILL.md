@@ -46,7 +46,7 @@ and packaged-app. Use the smallest relevant command covering the change.
 Install/restore dependencies only when manifests changed or required dependencies
 are missing. Expand testing only when new changes, failures, or unresolved concerns
 justify it. Windows Node commands need expanded file lists rather than literal
-wildcards. Node 22 is required for the frontend.
+wildcards. Use Node 26 (or >=24.12) for the frontend.
 
 There is no hosted browser suite, authenticated CRUD fixture launcher, measured
 coverage baseline, or mandatory numeric coverage threshold in this scaffold.

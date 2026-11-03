@@ -39,7 +39,7 @@ keep named data volumes and never add `-v`. Do not stop another worktree's stack
 or reset shared Docker state. The launcher has only `-Port`; do not invent
 `-NoBuild`, `-ProjectName`, or a `dev-web` Compose profile.
 
-For frontend hot reload against the already-running API, use Node 22:
+For frontend hot reload against the already-running API, use Node 26 (or >=24.12):
 
 ```powershell
 Set-Location frontend
