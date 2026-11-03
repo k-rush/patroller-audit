@@ -1,0 +1,36 @@
+name: Resolve immutable image
+description: Resolve an already-published locked commit image without rebuilding it
+inputs:
+  release_sha:
+    description: Verified main commit
+    required: true
+outputs:
+  digest:
+    description: Immutable image digest
+    value: ${{ steps.image.outputs.digest }}
+runs:
+  using: composite
+  steps:
+    - uses: azure/login@v2
+      with:
+        client-id: ${{ env.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+    - name: Resolve the locked commit image
+      id: image
+      shell: bash
+      env:
+        RELEASE_SHA: ${{ inputs.release_sha }}
+      run: |
+        set -euo pipefail
+        [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+        [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+        [[ "$ACR_LOGIN_SERVER" == "$ACR_NAME.azurecr.io" ]]
+        digest="$(az acr repository show --name "$ACR_NAME" --image "patroller-audit:$RELEASE_SHA" --query digest --output tsv)" || {
+          echo "::error::No published image can be resolved. Run successful main verification and image publication first."
+          exit 1
+        }
+        [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+        az acr repository update --name "$ACR_NAME" --image "patroller-audit:$RELEASE_SHA" \
+          --write-enabled false --delete-enabled false --output none
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"

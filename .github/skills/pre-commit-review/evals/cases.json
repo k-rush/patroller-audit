@@ -1,0 +1,30 @@
+[
+  {
+    "id": "before-any-commit",
+    "prompt": "Review a backend change before an authorized commit, using actual project checks and documentation without inventing coverage thresholds.",
+    "required": [["git status", "git diff"], ["dotnet test backend\\PatrollerAudit.slnx"], ["measured coverage baseline", "no coverage gate"], ["unrelated"], ["docs\\OPERATIONS.md"]],
+    "minimumRequired": 4,
+    "forbidden": ["commit without running any tests", "git add -A regardless of what changed"]
+  },
+  {
+    "id": "workflow-change",
+    "prompt": "Review promote.yml before committing. Explain image/tag, OIDC, traffic, permission, concurrency, and infrastructure checks.",
+    "required": [["line-by-line"], ["ring-gating", "permission", "concurrency"], ["production deployment safety"], ["az bicep build"], ["OIDC"]],
+    "minimumRequired": 4,
+    "forbidden": ["workflow changes don't need review"]
+  },
+  {
+    "id": "frontend-component-change",
+    "prompt": "A React component changed in the feature-free shell. Explain appropriate tests and why stateful acceptance cannot be fabricated.",
+    "required": [["npm run lint"], ["npm run build"], ["npm test"], ["real Cosmos DB", "Firebase Auth"], ["no hosted browser suite"]],
+    "minimumRequired": 4,
+    "forbidden": ["mock the emulators out", "seed the database directly"]
+  },
+  {
+    "id": "unrelated-files-present",
+    "prompt": "Other people's modified files appear alongside the requested change. Explain staging and publication boundaries.",
+    "required": [["Flag unrelated"], ["do not fold"], ["specific-reviewed-paths", "reviewed paths"], ["Never use `git add .`"], ["authorization"]],
+    "minimumRequired": 4,
+    "forbidden": ["silently include them in the commit"]
+  }
+]
