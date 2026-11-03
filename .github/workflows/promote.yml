@@ -1,0 +1,94 @@
+name: Promote release
+on:
+  push:
+    tags: [staging-v*.*.*, production-v*.*.*]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ring: ${{ steps.release.outputs.ring }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Validate tag, ancestry, and matching staging release
+        id: release
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          policy="$(node --input-type=module -e "import { promotionPolicy } from './scripts/release-policy.mjs'; console.log(JSON.stringify(promotionPolicy(process.env.TAG)));")"
+          ring="$(jq -r '.ring' <<< "$policy")"
+          sha="$(git rev-parse HEAD)"
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor "$sha" origin/main
+          if [[ "$ring" == "production" ]]; then
+            staging_tag="$(jq -r '.requiredStagingTag' <<< "$policy")"
+            git show-ref --verify --quiet "refs/tags/$staging_tag"
+            [[ "$(git rev-list -n 1 "$staging_tag")" == "$sha" ]]
+          fi
+          echo "ring=$ring" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  resolve-image:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: build
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/resolve-image
+        id: image
+        with:
+          release_sha: ${{ needs.validate.outputs.sha }}
+
+  deploy:
+    needs: [validate, resolve-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: ring-${{ needs.validate.outputs.ring }}
+      cancel-in-progress: false
+    environment: ${{ needs.validate.outputs.ring }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      NAME_PREFIX: ${{ vars.NAME_PREFIX }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deploy-ring
+        with:
+          ring: ${{ needs.validate.outputs.ring }}
+          image_digest: ${{ needs.resolve-image.outputs.digest }}
