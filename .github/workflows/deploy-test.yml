@@ -1,0 +1,92 @@
+name: Deploy test
+on:
+  workflow_run:
+    workflows: [Verify]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-release
+  cancel-in-progress: false
+
+jobs:
+  setup-required:
+    if: github.event_name == 'workflow_run' && vars.ENABLE_TEST_DEPLOYMENT != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Automatic test deployment is disabled. Configure cloud environments, then set ENABLE_TEST_DEPLOYMENT=true." >> "$GITHUB_STEP_SUMMARY"
+
+  build-image:
+    if: |
+      vars.ENABLE_TEST_DEPLOYMENT == 'true' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      release_sha: ${{ github.event.workflow_run.head_sha }}
+
+  resolve-image:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: build
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/resolve-image
+        id: image
+        with:
+          release_sha: ${{ github.sha }}
+
+  deploy:
+    needs: [build-image, resolve-image]
+    if: |
+      always() && !cancelled() &&
+      (needs.build-image.result == 'success' || needs.resolve-image.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: ring-test
+      cancel-in-progress: false
+    environment: test
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      NAME_PREFIX: ${{ vars.NAME_PREFIX }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: ./.github/actions/deploy-ring
+        with:
+          ring: test
+          image_digest: ${{ needs.build-image.outputs.digest || needs.resolve-image.outputs.digest }}

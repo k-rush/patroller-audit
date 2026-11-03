@@ -1,6 +1,6 @@
 targetScope = 'resourceGroup'
 
-@description('Stable lowercase alphanumeric application prefix. Use a dedicated resource group.')
+@description('Stable lowercase alphanumeric application prefix beginning with a letter. Use a dedicated resource group.')
 @minLength(3)
 @maxLength(10)
 param namePrefix string = 'patrolapp'
