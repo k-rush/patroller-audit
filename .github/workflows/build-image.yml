@@ -39,7 +39,7 @@ jobs:
           [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
           [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
           [[ "$ACR_LOGIN_SERVER" == "$ACR_NAME.azurecr.io" ]]
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.release_sha }}
       - uses: azure/login@v3
