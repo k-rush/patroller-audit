@@ -42,12 +42,14 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
   properties: {
     managedEnvironmentId: environment.id
     configuration: {
-      activeRevisionsMode: 'Single'
+      activeRevisionsMode: 'Multiple'
+      maxInactiveRevisions: 10
       ingress: {
         external: true
         targetPort: 8080
         allowInsecure: false
         transport: 'auto'
+        traffic: [{ latestRevision: true, weight: 100 }]
       }
       registries: [{ server: registry.properties.loginServer, identity: identity.id }]
       secrets: [{ name: 'applicationinsights', value: insights.properties.ConnectionString }]

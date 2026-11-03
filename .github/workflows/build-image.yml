@@ -1,0 +1,97 @@
+name: Build image
+on:
+  workflow_call:
+    inputs:
+      release_sha:
+        description: Successfully verified main commit
+        type: string
+        required: true
+    outputs:
+      digest:
+        description: Immutable published image digest
+        value: ${{ jobs.build.outputs.digest }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: build
+    concurrency:
+      group: image-${{ inputs.release_sha }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - name: Validate immutable build input
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$ACR_NAME" =~ ^[a-z0-9]{5,50}$ ]]
+          [[ "$ACR_LOGIN_SERVER" == "$ACR_NAME.azurecr.io" ]]
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Reuse an existing immutable commit image
+        id: existing
+        run: |
+          set -euo pipefail
+          repositories="$(az acr repository list --name "$ACR_NAME" --output json)"
+          if jq -e 'index("patroller-audit") != null' <<< "$repositories" > /dev/null; then
+            tags="$(az acr repository show-tags --name "$ACR_NAME" --repository patroller-audit --output json)"
+            if jq -e --arg tag "$RELEASE_SHA" 'index($tag) != null' <<< "$tags" > /dev/null; then
+              digest="$(az acr repository show --name "$ACR_NAME" --image "patroller-audit:$RELEASE_SHA" --query digest --output tsv)"
+              [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+              echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+      - name: Obtain short-lived registry credentials
+        if: steps.existing.outputs.digest == ''
+        run: |
+          set -euo pipefail
+          token="$(az acr login --name "$ACR_NAME" --expose-token --query accessToken --output tsv)"
+          echo "::add-mask::$token"
+          printf '%s' "$token" | docker login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+      - uses: docker/setup-buildx-action@v3
+        if: steps.existing.outputs.digest == ''
+      - uses: docker/build-push-action@v7
+        if: steps.existing.outputs.digest == ''
+        id: build
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.ACR_LOGIN_SERVER }}/patroller-audit:${{ inputs.release_sha }}
+          provenance: mode=max
+          sbom: true
+      - uses: actions/attest-build-provenance@v2
+        if: steps.existing.outputs.digest == '' && vars.ENABLE_GITHUB_ATTESTATIONS == 'true'
+        with:
+          subject-name: ${{ vars.ACR_LOGIN_SERVER }}/patroller-audit
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Lock commit tag and record digest
+        id: image
+        env:
+          DIGEST: ${{ steps.existing.outputs.digest || steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          az acr repository update --name "$ACR_NAME" --image "patroller-audit:$RELEASE_SHA" \
+            --write-enabled false --delete-enabled false --output none
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          printf 'Commit: %s\nImage: %s/patroller-audit@%s\n' "$RELEASE_SHA" "$ACR_LOGIN_SERVER" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"

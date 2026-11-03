@@ -1,0 +1,46 @@
+name: Deploy ring
+description: Deploy an immutable app image, check the serving revision, and restore prior traffic on failure
+inputs:
+  ring:
+    description: Target ring
+    required: true
+  image_digest:
+    description: Immutable sha256 digest
+    required: true
+outputs:
+  base_url:
+    description: Deployed application URL
+    value: ${{ steps.deploy.outputs.base_url }}
+  revision:
+    description: Deployed revision
+    value: ${{ steps.deploy.outputs.revision }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - uses: azure/login@v2
+      with:
+        client-id: ${{ env.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+    - name: Install Container Apps CLI extension
+      shell: bash
+      run: az extension add --name containerapp --upgrade --only-show-errors
+    - name: Deploy, verify, and roll back failed gates
+      id: deploy
+      shell: bash
+      env:
+        RING: ${{ inputs.ring }}
+        IMAGE_DIGEST: ${{ inputs.image_digest }}
+        SOURCE_REF: ${{ github.ref }}
+        REVISION_SUFFIX: r${{ github.run_id }}-${{ github.run_attempt }}
+      run: node scripts/deployment.mjs
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: deployment-${{ inputs.ring }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: artifacts/deployment-state.json
+        if-no-files-found: warn
+        retention-days: 14
