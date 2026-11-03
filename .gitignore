@@ -4,6 +4,8 @@
 **/dist/
 **/coverage/
 **/TestResults/
+**/test-results/
+**/playwright-report/
 **/*.tsbuildinfo
 artifacts/
 .env

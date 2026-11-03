@@ -12,6 +12,9 @@ param imageDigest string
 @description('Real, dedicated Firebase project for this ring. Never demo-prefixed.')
 @minLength(6)
 param firebaseProjectId string
+@description('Public Firebase web API key, not an administrative credential.')
+@minLength(1)
+param firebaseApiKey string
 @maxLength(24)
 param revisionSuffix string
 
@@ -64,6 +67,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
           { name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' }
           { name: 'ASPNETCORE_HTTP_PORTS', value: '8080' }
           { name: 'Auth__ProjectId', value: firebaseProjectId }
+          { name: 'Auth__ApiKey', value: firebaseApiKey }
           { name: 'Auth__EmulatorEnabled', value: 'false' }
           { name: 'Emulator__Enabled', value: 'false' }
           { name: 'CosmosDb__AccountEndpoint', value: cosmos.properties.documentEndpoint }

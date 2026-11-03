@@ -1,12 +1,15 @@
 # Patroller Audit
 
-Feature-free ski patrol application foundation using ASP.NET Core 10 and
+Ski patrol dispatch proof of concept using ASP.NET Core 10 and
 React/TypeScript, with dedicated Firebase projects, Cosmos accounts, and Azure
 Container Apps resources.
 
-The only UI is a placeholder page. The only API routes are operational health
-checks. No patrol workflows, incident forms, roles, domain collections, business
-records, demo accounts, or login screens have been implemented.
+The dispatcher command center has a left navigation rail, a Summit West map,
+and a shared incident list. Clicking the map saves an incident in Cosmos DB and
+opens a rectangular popout with its ID, server creation time in Pacific time,
+and coordinates. Closing the popout keeps its reopenable marker.
+Firebase email/password sign-in requires a pre-provisioned dispatcher account
+with Summit West access. This POC is for fictional data only, not operational dispatch.
 
 ## Local development
 
@@ -21,7 +24,18 @@ Open **http://127.0.0.1:18080**. Local Cosmos DB and Firebase Auth use real
 emulators, isolated Compose resources, and persistent named volumes. Ports are
 chosen to avoid common development defaults. Override ports in an untracked `.env` file
 or use `Start-Local.ps1 -Port 18090`. No identities or business data are seeded.
-The local readiness check creates only an empty database.
+The local readiness check creates the database and empty incidents container.
+Provision an explicit local dispatcher account (use a fictional email):
+
+```powershell
+.\scripts\New-LocalDispatcher.ps1 -BaseUrl http://127.0.0.1:18080 `
+  -Email fictional-dispatcher@example.test -Password (Read-Host -AsSecureString 'Local password')
+```
+
+Sign in at the local app URL. Accounts and incidents survive stack restarts.
+Map tiles require internet access and are attributed to OpenStreetMap.
+Use **Refresh incidents** to see other dispatchers' new records; there is no
+live subscription, incident editing, assignment, or closure workflow.
 
 Stop this stack without deleting data:
 
@@ -41,9 +55,9 @@ npm run dev
 
 Vite proxies API requests to port 8080. Without cloud/emulator configuration,
 development `/health` returns 200 and `/api/health` returns 503; there is no
-in-memory storage fallback. The Docker image packages the SPA into the API
-container. Firebase client initialization is available as a foundation helper;
-it is deliberately not invoked by the placeholder UI.
+in-memory storage fallback. Sign-in requires configured Firebase, so use the
+local Compose stack for end-to-end work. The Docker image packages the SPA into
+the API container and supplies public Firebase settings through `/api/config`.
 
 ## Checks
 
@@ -58,10 +72,23 @@ npm ci
 npm run lint
 npm run build
 npm test
+# Against an already-running isolated local stack (set its actual ports):
+$env:BASE_URL = 'http://127.0.0.1:18080'
+$env:AUTH_EMULATOR_URL = 'http://127.0.0.1:19099'
+npx playwright install chromium
+npm run test:e2e
 ```
 
 The Verify workflow runs these checks, compiles Bicep, and boots the packaged app
-against the real local emulators. Dependency lockfiles are committed inputs.
+against the real local emulators. Browser acceptance
+creates fictional identities through Firebase and incidents through the
+authenticated API, checks persistence and retry identity, then removes only
+its own test identities. Fictional incident records remain in the local database.
+Dependency lockfiles are committed inputs.
+
+Use Node 24.x (at least 24.12) for Playwright browser installation and acceptance.
+The pinned Playwright 1.56 installer hangs on Node 26; frontend builds and unit
+tests still use Node 26 in CI.
 
 ## Agent skills
 

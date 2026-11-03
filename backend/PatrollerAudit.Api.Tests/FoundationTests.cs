@@ -13,6 +13,7 @@ public sealed class FoundationTests
     [InlineData("/health", HttpStatusCode.OK)]
     [InlineData("/api/health", HttpStatusCode.ServiceUnavailable)]
     [InlineData("/api/not-a-feature", HttpStatusCode.NotFound)]
+    [InlineData("/api/incidents", HttpStatusCode.Unauthorized)]
     public async Task UnconfiguredDevelopmentHasLivenessButNotReadiness(string path, HttpStatusCode expected)
     {
         await using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>

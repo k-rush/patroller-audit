@@ -9,6 +9,9 @@ in `backend\PatrollerAudit.Api\appsettings.json`; do not commit credentials.
 |---|---|---|
 | `ASPNETCORE_ENVIRONMENT` | `Production` | `Development` |
 | `Auth__ProjectId` | Dedicated real Firebase project for the ring | `demo-patroller-audit-local` |
+| `Auth__ApiKey` | Public Firebase web API key | Local placeholder supplied by `/api/config` |
+| `Auth__Domain` | Optional auth domain; defaults to `<project>.firebaseapp.com` | Not needed for email/password emulator login |
+| `Auth__EmulatorPublicUrl` | Unset | Loopback Firebase URL using `FIREBASE_AUTH_PORT` |
 | `Auth__EmulatorEnabled`, `Emulator__Enabled` | `false` | `true` |
 | `FIREBASE_AUTH_EMULATOR_HOST` | Unset | `firebase-auth-emulator:9099` |
 | `CosmosDb__AccountEndpoint` | Azure Cosmos HTTPS endpoint | Unset |
@@ -24,13 +27,65 @@ trust-on-first-use only inside the Compose network. Only the configured emulator
 client trusts the captured certificate; global TLS validation is not disabled.
 Cloud authentication validates Firebase JWT signatures, issuer, audience,
 expiry, and subject. Local authentication uses Firebase Admin's actual emulator
-verification. Future endpoints require authentication by default; authorization,
-tenancy, and business access rules remain unimplemented.
+verification. Product endpoints require authentication by default. Incident endpoints
+additionally require verified custom claims `dispatcher: true` and
+`resortId: "summit-west"`. Only trusted account administration may assign these
+claims; public registration is not an authorization path. The browser has no
+account creation or claim editing UI.
 
 `/health` checks process liveness without calling dependencies. `/api/health`
 checks Cosmos database access and returns 503 when unavailable/unconfigured.
 It does not claim that Firebase, user login, or product workflows have been
-validated. Unknown `/api/*` routes return 404 instead of the SPA.
+validated. Unknown `/api/*` routes return 404 instead of the SPA. `/api/config`
+anonymously exposes public Firebase web configuration only, never service credentials.
+
+## Dispatch POC contract
+
+The bounded journey is an authenticated Summit West dispatcher opening the map,
+clicking a location, and seeing a saved incident popout. Closing the popout only
+hides it; the marker and shared incident list remain. Reload reads saved records.
+The map starts at the Summit West base area (47.4206, -121.4213); clicks are not
+geofenced. This is not a real-time collaboration or operational patrol system.
+
+| Action | API / invariant | Persisted effect / UI |
+|---|---|---|
+| Sign in | Firebase email/password; verified dispatcher and resort claims on every product request | No app user records; unauthorized accounts cannot list or create incidents |
+| Open map/list or refresh | `GET /api/incidents?cursor=...`; resort partition fixed by server, pages of at most 100 | Client follows opaque continuation cursors; previous records stay visible with a warning if refresh fails |
+| Click map | `POST /api/incidents` with UUID, latitude, longitude; finite coordinates within global ranges | Creates immutable schema-v1 incident; server assigns UTC `createdAt`, token subject `createdBy`, and `resortId`; popout appears only after save confirmation |
+| Reopen marker | `GET /api/incidents/{uuid}` also supports individual reads | No write; popout shows ID, coordinates, and creation time formatted in `America/Los_Angeles` |
+| Retry uncertain save | Same UUID and coordinates, same authenticated creator | Create conflict returns original record and time; changed payload or creator returns 409, never overwrites |
+
+This introduces the first domain container, `incidents`, partitioned by `/resortId`.
+IDs are client-generated UUID request identities, not trusted business attribution.
+Creation time is entry time, not an asserted incident occurrence time.
+There is no status, medical information, assignment, update/delete endpoint,
+offline write queue, or automatic conflict overwrite. Append-only records do not
+need edit ETags. The default Cosmos index supports descending `createdAt` reads;
+all queries use the fixed Summit West partition. Other resorts and general
+multi-resort permissions remain deferred.
+
+Pending save identity is retained in browser session storage, scoped to the signed-in
+user, before a request is sent. A reload offers a manual retry, not an automatic
+write. With browser storage disabled, only in-memory retry survives. Closing the
+tab can lose an unconfirmed request identity; consult the shared list before
+creating a replacement. No input is represented as saved before the server replies.
+The server stores initial creator/time for attribution; no correction/history
+workflow exists in this POC.
+
+The old scaffold had no domain records, so there is no historical migration or
+backfill. Before any separately authorized cloud rollout, provision the new
+container and its container-scoped data contributor grant using the foundation
+template. The existing database read grant remains; no account-wide write grant
+is added. Supply GitHub environment variable `FIREBASE_API_KEY` (public web key),
+enable Firebase email/password sign-in, and provision authorized accounts using
+trusted Firebase administration. No cloud accounts are created by this feature.
+Retained old app revisions ignore the new container; rollback must not delete it.
+
+For local use, `scripts\New-LocalDispatcher.ps1` accepts a secure password prompt
+and refuses non-loopback or non-demo configuration. It creates only the explicitly
+requested fictional local account. Packaged-app acceptance uses real Firebase
+identities and API-created Cosmos records, including denied access, client
+timestamp spoofing, lost-response retry, list/map switching, and reload recovery.
 
 ## One-time cloud bootstrap
 
@@ -41,9 +96,9 @@ Before running delivery workflows:
    Cosmos, Container Registry, monitoring, and managed identity resource providers.
    Verify regional availability, spend, and naming before applying.
 2. Create separate real Firebase projects for each approved ring and enable
-   Firebase Authentication. Do not reuse another application's projects. Sign-in providers,
-   authorized domains, UI configuration, and customer identity policies are
-   deferred until authentication features are designed.
+   Firebase Authentication with email/password sign-in. Do not reuse another
+   application's projects. Provision dispatcher accounts and their custom claims
+   through trusted administration; customer onboarding remains deferred.
 3. Create GitHub environments `infrastructure`, `build`, `test`, `staging`,
    `production`, and `test-monitor`. Restrict infrastructure, test, and monitoring
    to `main`. Allow build on `main` and promotion tags; allow staging on `main`
@@ -73,7 +128,7 @@ Before running delivery workflows:
    ring environments. Set `BUILD_PRINCIPAL_ID` to the build principal's **object**
    ID in infrastructure. Set `ACR_NAME` and `ACR_LOGIN_SERVER` from foundation
    outputs for build and each ring. Set a distinct
-   `FIREBASE_PROJECT_ID` for each ring.
+   `FIREBASE_PROJECT_ID` and public web `FIREBASE_API_KEY` for each ring.
 6. Protect `main` using a branch ruleset requiring pull requests and the Verify
    jobs. Protect `staging-v*` and `production-v*` tag creation/update/deletion
    with tag rulesets. Enable Dependabot alerts and secret scanning where available.
@@ -92,8 +147,8 @@ principal ID and must be customized before direct CLI deployment.
 
 The foundation provisions a shared registry/log workspace and separate Cosmos
 accounts, databases, identities, telemetry instances, and Container Apps
-environments per ring. No domain containers are created. App identities receive
-read-only Cosmos data-plane access; expand only alongside approved features.
+environments per ring, plus the partitioned incidents container. App identities
+receive database read access and write access scoped to that container only.
 Cosmos currently has a public endpoint but rejects account-key authentication.
 Private networking, alerts, retention/privacy policies, and a customer launch
 review are required before real patrol data is accepted. Provisioned Cosmos
@@ -146,8 +201,9 @@ preceding-ring and deployment gates. It cannot invent an unpublished image.
 | Rollback ring | Restore a retained known-good revision under target-ring approval |
 | Monitor test | Opt-in scheduled read-only hosted checks |
 
-There are deliberately no business-data seeding, compliance scanning, authenticated
-write synthetics, or persona/browser workflow jobs while the app has no product features.
+No business data or accounts are seeded at startup. Verify includes local
+authenticated dispatch API/browser acceptance, but no hosted write synthetics,
+medical/compliance checks, or production persona acceptance.
 
 ## Rollback and diagnostics
 
@@ -166,7 +222,7 @@ ownership, activates and checks the target before routing traffic, then runs
 read-only gates. If rollback gates fail, it restores original traffic. Deployment
 and rollback state snapshots are retained as workflow artifacts for 14 days.
 A failed first deployment has no prior revision to restore; its workflow reports
-that explicitly. No data migrations exist yet.
+that explicitly. The incidents container is additive; no historical migrations exist yet.
 
 Set `BASE_URL` in `test-monitor` to the test HTTPS root URL and repository variable
 `ENABLE_TEST_MONITORING=true` to enable **Monitor test** every 30 minutes. Manual
@@ -179,10 +235,11 @@ Use Container Apps revision logs and ring Application Insights for diagnostics.
 For local failures, run `docker compose ps` and `docker compose logs --tail 100`.
 Stop only this project's Compose stack; never prune shared Docker resources.
 
-Local validation covers the shell, configuration boundaries, and real Cosmos
-readiness, plus a rejected Firebase emulator sign-in without creating an account.
-It does not substitute for deploying the templates into an approved Azure account
-or accepting a real Firebase sign-in journey.
+The local smoke script covers the shell, configuration boundaries, Cosmos readiness,
+and a rejected Firebase sign-in. Separate Playwright acceptance creates fictional
+emulator identities and exercises real authenticated incident writes, reads, and
+browser behavior. Neither substitutes for approved cloud deployment and acceptance
+of the actual ring's Firebase configuration and account policy.
 
 The Firebase SDK's gRPC dependency is overridden to a patched compatible release.
 Development toolchains still include upstream minimatch advisories; do not expose
