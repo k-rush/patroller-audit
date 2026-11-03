@@ -30,11 +30,14 @@ public sealed class CosmosReadiness(RuntimeSettings settings) : IHealthCheck, ID
                 initialization.Release();
             }
 
-            // Only local infrastructure bootstraps an empty database; no containers or records are seeded.
+            // Cloud containers and permissions are provisioned before application rollout.
             if (settings.EmulatorEnabled)
-                await client.CreateDatabaseIfNotExistsAsync(settings.DatabaseName, cancellationToken: cancellationToken);
+            {
+                var database = await client.CreateDatabaseIfNotExistsAsync(settings.DatabaseName, cancellationToken: cancellationToken);
+                await database.Database.CreateContainerIfNotExistsAsync("incidents", "/resortId", cancellationToken: cancellationToken);
+            }
             else
-                await client.GetDatabase(settings.DatabaseName).ReadAsync(cancellationToken: cancellationToken);
+                await client.GetContainer(settings.DatabaseName, "incidents").ReadContainerAsync(cancellationToken: cancellationToken);
             return HealthCheckResult.Healthy();
         }
         catch (Exception exception) when (exception is CosmosException or HttpRequestException or Azure.Identity.AuthenticationFailedException)
@@ -42,6 +45,9 @@ public sealed class CosmosReadiness(RuntimeSettings settings) : IHealthCheck, ID
             return HealthCheckResult.Unhealthy("Cosmos is unavailable.");
         }
     }
+
+    public Container Incidents => client?.GetContainer(settings.DatabaseName, "incidents")
+        ?? throw new InvalidOperationException("Storage is not ready.");
 
     private CosmosClient CreateClient()
     {

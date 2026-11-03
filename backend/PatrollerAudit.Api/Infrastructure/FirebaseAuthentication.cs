@@ -63,6 +63,10 @@ public static class FirebaseAuthentication
         {
             options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
                 .RequireAuthenticatedUser().Build();
+            options.AddPolicy("SummitWestDispatcher", policy => policy.RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                    string.Equals(context.User.FindFirstValue("dispatcher"), "true", StringComparison.OrdinalIgnoreCase) &&
+                    context.User.FindFirstValue("resortId") == "summit-west"));
         });
     }
 }
@@ -98,8 +102,11 @@ internal sealed class EmulatorTokenVerifier : IDisposable
     public async Task<ClaimsPrincipal> VerifyAsync(string token, CancellationToken cancellationToken)
     {
         var verified = await FirebaseAuth.GetAuth(app).VerifyIdTokenAsync(token, cancellationToken);
-        return new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim("sub", verified.Uid), new Claim("iss", verified.Issuer)], "Firebase"));
+        var claims = new List<Claim> { new("sub", verified.Uid), new("iss", verified.Issuer) };
+        foreach (var name in new[] { "dispatcher", "resortId" })
+            if (verified.Claims.TryGetValue(name, out var value))
+                claims.Add(new Claim(name, Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? ""));
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Firebase"));
     }
 
     public void Dispose() => app.Delete();

@@ -46,6 +46,7 @@ function settings(env) {
 
 export async function deploy(env, { run = azure, check = smoke, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), save = saveState } = {}) {
   const { appName, group } = settings(env);
+  if (!env.FIREBASE_API_KEY?.trim()) throw new Error('FIREBASE_API_KEY is required for dispatcher sign-in.');
   validateDigest(env.IMAGE_DIGEST);
   if (!/^r\d+-\d+$/.test(env.REVISION_SUFFIX ?? '') || env.REVISION_SUFFIX.length > 24) {
     throw new Error('A bounded workflow revision suffix is required.');
@@ -74,7 +75,8 @@ export async function deploy(env, { run = azure, check = smoke, sleep = ms => ne
     const result = run(['deployment', 'group', 'create', '--name', `${appName}-${env.REVISION_SUFFIX}`,
       '--resource-group', group, '--template-file', 'infrastructure/app.bicep', '--parameters',
       `namePrefix=${env.NAME_PREFIX}`, `ring=${env.RING}`, `imageDigest=${env.IMAGE_DIGEST}`,
-      `firebaseProjectId=${env.FIREBASE_PROJECT_ID}`, `revisionSuffix=${env.REVISION_SUFFIX}`]);
+      `firebaseProjectId=${env.FIREBASE_PROJECT_ID}`, `firebaseApiKey=${env.FIREBASE_API_KEY}`,
+      `revisionSuffix=${env.REVISION_SUFFIX}`]);
     const baseUrl = result.properties.outputs.baseUrl.value;
     let lastError = new Error('Candidate readiness deadline expired.');
     const deadline = Date.now() + 5 * 60 * 1000;

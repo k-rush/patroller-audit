@@ -8,6 +8,7 @@ const oldImage = `patrolregistry.azurecr.io/patroller-audit@sha256:${'b'.repeat(
 const env = {
   AZURE_RESOURCE_GROUP: 'patrol-test', NAME_PREFIX: 'patrolapp', ACR_NAME: 'patrolregistry',
   ACR_LOGIN_SERVER: 'patrolregistry.azurecr.io', FIREBASE_PROJECT_ID: 'patroller-audit-test',
+  FIREBASE_API_KEY: 'public-web-configuration',
   RING: 'test', SOURCE_REF: 'refs/heads/main', IMAGE_DIGEST: digest, REVISION_SUFFIX: 'r123-1',
 };
 
@@ -69,6 +70,12 @@ test('promotion refuses a preceding ring serving a different digest before chang
   assert.equal(azure.calls.some(args => args[0] === 'deployment'), false);
 });
 
+test('deployment refuses missing dispatcher sign-in configuration before changing Azure', async () => {
+  const azure = model();
+  await assert.rejects(deploy({ ...env, FIREBASE_API_KEY: '' }, options(azure.run)), /FIREBASE_API_KEY/);
+  assert.equal(azure.calls.length, 0);
+});
+
 test('a successful deployment gates the candidate before deactivating the old revision', async () => {
   const azure = model();
   let checked = false;
@@ -79,6 +86,7 @@ test('a successful deployment gates the candidate before deactivating the old re
   assert.equal(checked, true);
   assert.equal(result.revision, azure.candidate);
   assert.equal(azure.revisions.get(azure.old).active, false);
+  assert.ok(azure.calls.find(args => args[0] === 'deployment').includes('firebaseApiKey=public-web-configuration'));
 });
 
 test('a failed candidate smoke gate restores the old traffic and deactivates only the candidate', async () => {

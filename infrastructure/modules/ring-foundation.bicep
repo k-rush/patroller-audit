@@ -44,7 +44,17 @@ resource database 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2024-05-15
   }
 }
 
-// Read-only data-plane access is sufficient for this feature-free foundation.
+resource incidents 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2024-05-15' = {
+  parent: database
+  name: 'incidents'
+  properties: {
+    resource: {
+      id: 'incidents'
+      partitionKey: { paths: ['/resortId'], kind: 'Hash' }
+    }
+  }
+}
+
 resource cosmosReadRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
   parent: cosmos
   name: guid(cosmos.id, database.id, identity.id, 'read')
@@ -52,6 +62,16 @@ resource cosmosReadRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignment
     principalId: identity.properties.principalId
     roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000001'
     scope: '${cosmos.id}/dbs/${database.name}'
+  }
+}
+
+resource incidentsWriteRole 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2024-05-15' = {
+  parent: cosmos
+  name: guid(cosmos.id, incidents.id, identity.id, 'write-incidents')
+  properties: {
+    principalId: identity.properties.principalId
+    roleDefinitionId: '${cosmos.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+    scope: '${cosmos.id}/dbs/${database.name}/colls/${incidents.name}'
   }
 }
 

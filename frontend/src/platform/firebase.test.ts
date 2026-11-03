@@ -1,5 +1,7 @@
-import { expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { initializeIdentity } from './firebase';
+
+afterEach(() => vi.unstubAllGlobals());
 
 test.each([
   'https://localhost:9099',
@@ -11,4 +13,12 @@ test.each([
 
 test('rejects real projects when connecting to an emulator', () => {
   expect(() => initializeIdentity({ projectId: 'patroller-audit-test' }, 'http://localhost:9099')).toThrow();
+});
+
+test.each([
+  { hostname: 'patrol.example.test', protocol: 'http:' },
+  { hostname: 'localhost', protocol: 'https:' },
+])('rejects emulator initialization outside loopback HTTP: %s', location => {
+  vi.stubGlobal('window', { location });
+  expect(() => initializeIdentity({ projectId: 'demo-patroller-audit' }, 'http://localhost:9099')).toThrow();
 });
