@@ -55,7 +55,7 @@ jobs:
       - run: az extension add --name containerapp --upgrade --only-show-errors
       - name: Restore retained revision with read-only gates
         run: node scripts/deployment.mjs rollback
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: rollback-${{ inputs.ring }}-${{ github.run_id }}-${{ github.run_attempt }}
