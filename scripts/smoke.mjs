@@ -20,11 +20,12 @@ export async function smoke(baseUrl, { request = fetch, allowLocal = false } = {
   await read('/health');
   await read('/api/health');
   const html = await (await read('/')).text();
-  if (!html.includes('<title>Patroller Audit</title>')) throw new Error('Application shell is missing.');
+  const brand = /<title>(PatrolNotes|Patroller Audit)<\/title>/.exec(html)?.[1];
+  if (!brand) throw new Error('Application shell is missing.');
   const asset = /src="(\/assets\/[^"]+\.js)"/.exec(html)?.[1];
   if (!asset) throw new Error('Packaged application JavaScript is missing.');
   const javascript = await (await read(asset)).text();
-  if (!javascript.includes('Patroller Audit')) throw new Error('Packaged application JavaScript is missing.');
+  if (!javascript.includes(brand)) throw new Error('Packaged application JavaScript is missing.');
   await read('/api/not-a-feature', 404);
 }
 

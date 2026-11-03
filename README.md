@@ -1,8 +1,12 @@
-# Patroller Audit
+# PatrolNotes
 
 Ski patrol dispatch proof of concept using ASP.NET Core 10 and
 React/TypeScript, with dedicated Firebase projects, Cosmos accounts, and Azure
 Container Apps resources.
+
+PatrolNotes is the app's working name. Repository, .NET project, package,
+and infrastructure identifiers retain their existing `PatrollerAudit` /
+`patroller-audit` names.
 
 The dispatcher command center has a left navigation rail, a Summit West map,
 and a shared incident list. Clicking the map saves an incident in Cosmos DB and

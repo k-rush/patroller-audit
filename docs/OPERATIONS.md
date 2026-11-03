@@ -207,6 +207,11 @@ medical/compliance checks, or production persona acceptance.
 
 ## Rollback and diagnostics
 
+PatrolNotes is the current UI brand; infrastructure identifiers are unchanged.
+Cloud smoke gates accept both PatrolNotes and the legacy Patroller Audit brand
+with matching JavaScript so retained pre-rebrand revisions can still be recovered.
+Local packaged-app checks require PatrolNotes.
+
 Normal deployment snapshots the previous serving revision before applying.
 Multiple-revision mode routes to the latest ready revision. Gates confirm the
 candidate revision and exact digest are serving, then check liveness, Cosmos
