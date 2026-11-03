@@ -86,6 +86,10 @@ authenticated API, checks persistence and retry identity, then removes only
 its own test identities. Fictional incident records remain in the local database.
 Dependency lockfiles are committed inputs.
 
+Use Node 24.x (at least 24.12) for Playwright browser installation and acceptance.
+The pinned Playwright 1.56 installer hangs on Node 26; frontend builds and unit
+tests still use Node 26 in CI.
+
 ## Agent skills
 
 Repository skills cover [Azure investigation](.github/skills/azure-observability-investigator/SKILL.md),
