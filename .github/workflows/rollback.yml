@@ -43,11 +43,11 @@ jobs:
       ROLLBACK_REASON: ${{ inputs.reason }}
       SOURCE_REF: ${{ github.ref }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -55,7 +55,7 @@ jobs:
       - run: az extension add --name containerapp --upgrade --only-show-errors
       - name: Restore retained revision with read-only gates
         run: node scripts/deployment.mjs rollback
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: rollback-${{ inputs.ring }}-${{ github.run_id }}-${{ github.run_attempt }}

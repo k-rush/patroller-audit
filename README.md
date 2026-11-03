@@ -43,7 +43,7 @@ Stop this stack without deleting data:
 docker compose down
 ```
 
-For faster UI iteration, use Node 22 and .NET SDK 10:
+For faster UI iteration, use Node 26 (or >=24.12) and .NET SDK 10:
 
 ```powershell
 dotnet run --project backend\PatrollerAudit.Api
