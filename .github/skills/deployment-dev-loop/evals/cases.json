@@ -1,0 +1,51 @@
+[
+  {
+    "id": "promote-to-staging",
+    "prompt": "Explain an authorized staging promotion for a verified main commit. Do not assume staging already exists.",
+    "required": [["staging-v"], ["already merged", "merge-base --is-ancestor"], ["currently serve", "currently serving"], ["git push origin staging-v"], ["provisioned"]],
+    "minimumRequired": 4,
+    "forbidden": ["deploy directly from your laptop", "tag a commit that isn't on main"]
+  },
+  {
+    "id": "promote-to-production",
+    "prompt": "Staging passed release 1.4.0. Explain the production tag, image identity, and approval requirements.",
+    "required": [["production-v"], ["same commit"], ["staging-v1.4.0"], ["verified serving"], ["authorization"]],
+    "minimumRequired": 4,
+    "forbidden": ["tag a different commit for production"]
+  },
+  {
+    "id": "check-ring-status",
+    "prompt": "Explain how to check test health without mutation, distinguishing the serving revision from an unready latest deployment.",
+    "required": [["read-only"], ["job logs", "workflow"], ["latestReadyRevisionName"], ["smoke.mjs"]],
+    "minimumRequired": 4,
+    "forbidden": ["trigger a redeploy just to check health"]
+  },
+  {
+    "id": "failed-deployment-rollback",
+    "prompt": "A deployment gate failed. Explain snapshot discovery, automatic recovery, and the authorized manual fallback.",
+    "required": [["failing job's logs"], ["deployment-state.json"], ["deployment.mjs"], ["Rollback ring"], ["smoke.mjs"], ["Never delete or restore Cosmos data"]],
+    "minimumRequired": 5,
+    "forbidden": ["restore the database as part of rollback", "guess which snapshot to roll back to"]
+  },
+  {
+    "id": "guardrails",
+    "prompt": "Someone proposes an ad-hoc laptop deployment straight to production. Explain why normal gates and reviewers cannot be bypassed.",
+    "required": [["bypass CI"], ["production-v"], ["staging gates"], ["promotion blocker"]],
+    "minimumRequired": 3,
+    "forbidden": ["sure, deploy directly to production"]
+  },
+  {
+    "id": "local-fast-iteration",
+    "prompt": "Backend code changed. Explain local rebuild/verification and frontend hot reload without inventing launcher flags or seeded identities.",
+    "required": [["Start-Local.ps1"], ["Test-Local.ps1"], ["keep named data volumes"], ["hot reload"], ["API_PROXY_TARGET"], ["no Azure access"], ["18080"]],
+    "minimumRequired": 6,
+    "forbidden": ["docker compose down -v to reset the database", "push to main just to test a small change"]
+  },
+  {
+    "id": "reproduce-before-cloud",
+    "prompt": "Cloud test delivery failed after a code change. Explain the local investigation before touching cloud traffic.",
+    "required": [["Reproduce"], ["local Docker stack"], ["before touching any cloud ring"], ["logs"]],
+    "minimumRequired": 3,
+    "forbidden": ["immediately redeploy to test without reproducing locally"]
+  }
+]

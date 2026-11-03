@@ -11,68 +11,78 @@ on:
         description: sha256 digest from a successful Publish image run
         type: string
         required: true
+      release_sha:
+        description: Published main commit; leave blank for current main
+        type: string
+        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ inputs.ring }}
+  group: ring-${{ inputs.ring }}
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  resolve-image:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    environment: build
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a merged main commit
+        env:
+          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+      - uses: ./.github/actions/resolve-image
+        id: image
+        with:
+          release_sha: ${{ inputs.release_sha || github.sha }}
+      - name: Require the published commit digest
+        env:
+          REQUESTED: ${{ inputs.image_digest }}
+          RESOLVED: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED" == "$RESOLVED" ]]
+
+  deploy:
+    needs: resolve-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: ${{ inputs.ring }}
     permissions:
       contents: read
       id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      NAME_PREFIX: ${{ vars.NAME_PREFIX }}
+      ACR_NAME: ${{ vars.ACR_NAME }}
+      ACR_LOGIN_SERVER: ${{ vars.ACR_LOGIN_SERVER }}
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: ./.github/actions/deploy-ring
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Deploy immutable image and check readiness
-        shell: pwsh
-        env:
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          NAME_PREFIX: ${{ vars.NAME_PREFIX }}
-          ACR_NAME: ${{ vars.ACR_NAME }}
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          RING: ${{ inputs.ring }}
-          IMAGE_DIGEST: ${{ inputs.image_digest }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          foreach ($key in @('RESOURCE_GROUP', 'NAME_PREFIX', 'ACR_NAME', 'FIREBASE_PROJECT_ID')) {
-            if (-not [Environment]::GetEnvironmentVariable($key)) { throw "$key is required." }
-          }
-          if ($env:IMAGE_DIGEST -cnotmatch '^sha256:[a-f0-9]{64}$') { throw 'Invalid immutable image digest.' }
-          if ($env:FIREBASE_PROJECT_ID.StartsWith('demo-')) { throw 'Cloud rings cannot use Firebase emulators.' }
-          az acr repository show --name $env:ACR_NAME --image "patroller-audit@$env:IMAGE_DIGEST" --output none
-          if ($LASTEXITCODE -ne 0) { throw 'Published image does not exist.' }
-          $previousRing = switch ($env:RING) { 'staging' { 'test' }; 'production' { 'staging' } }
-          if ($previousRing) {
-            $previousImage = az containerapp show --resource-group $env:RESOURCE_GROUP --name "$env:NAME_PREFIX-$previousRing" --query 'properties.template.containers[0].image' --output tsv
-            if ($LASTEXITCODE -ne 0 -or -not $previousImage.EndsWith("/patroller-audit@$env:IMAGE_DIGEST")) {
-              throw 'Promotions require the same digest currently deployed in the preceding ring.'
-            }
-            $previousHost = az containerapp show --resource-group $env:RESOURCE_GROUP --name "$env:NAME_PREFIX-$previousRing" --query 'properties.configuration.ingress.fqdn' --output tsv
-            if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve preceding ring.' }
-            Invoke-WebRequest "https://$previousHost/api/health" -TimeoutSec 30 | Out-Null
-          }
-          $revision = "r${{ github.run_id }}-${{ github.run_attempt }}"
-          $deployment = az deployment group create --resource-group $env:RESOURCE_GROUP --template-file infrastructure/app.bicep --parameters "namePrefix=$env:NAME_PREFIX" "ring=$env:RING" "imageDigest=$env:IMAGE_DIGEST" "firebaseProjectId=$env:FIREBASE_PROJECT_ID" "revisionSuffix=$revision" --output json
-          if ($LASTEXITCODE -ne 0) { throw 'Application deployment failed.' }
-          $url = ($deployment | ConvertFrom-Json).properties.outputs.baseUrl.value
-          for ($attempt = 0; $attempt -lt 60; $attempt++) {
-            try {
-              Invoke-WebRequest "$url/api/health" -TimeoutSec 15 | Out-Null
-              Invoke-WebRequest "$url/health" -TimeoutSec 15 | Out-Null
-              "Deployed $env:RING to $url using $env:IMAGE_DIGEST" >> $env:GITHUB_STEP_SUMMARY
-              return
-            } catch { Start-Sleep -Seconds 5 }
-          }
-          throw 'Deployment did not become healthy.'
+          ring: ${{ inputs.ring }}
+          image_digest: ${{ needs.resolve-image.outputs.digest }}

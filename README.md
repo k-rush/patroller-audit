@@ -51,6 +51,8 @@ it is deliberately not invoked by the placeholder UI.
 dotnet restore backend\PatrollerAudit.slnx --locked-mode
 dotnet format backend\PatrollerAudit.slnx --verify-no-changes --no-restore
 dotnet test backend\PatrollerAudit.slnx -c Release --no-restore
+$scriptTests = (Get-ChildItem scripts\tests\*.test.mjs).FullName
+node --test $scriptTests
 Set-Location frontend
 npm ci
 npm run lint
@@ -61,12 +63,38 @@ npm test
 The Verify workflow runs these checks, compiles Bicep, and boots the packaged app
 against the real local emulators. Dependency lockfiles are committed inputs.
 
+## Agent skills
+
+Repository skills cover [Azure investigation](.github/skills/azure-observability-investigator/SKILL.md),
+[local development and deployment](.github/skills/deployment-dev-loop/SKILL.md),
+[isolated worktrees](.github/skills/git-worktree-workflow/SKILL.md),
+[pre-commit review](.github/skills/pre-commit-review/SKILL.md), and
+[user-story development](.github/skills/user-story-development/SKILL.md).
+They describe the current foundation and do not authorize feature implementation
+or publication.
+
+Run all deterministic instruction-coverage evaluations:
+
+```powershell
+Get-ChildItem .github\skills\*\evals\run.mjs | ForEach-Object { node $_.FullName }
+node --test scripts\tests\skill-evals.test.mjs
+```
+
+Each runner accepts `--case=<id>`. Default checks verify instruction coverage,
+not model behavior or application correctness, and run in Verify's existing
+script test suite. Opt-in `--live` evaluations require explicit AI-credit
+authorization and an authenticated Copilot CLI; they assess tool-disabled plans,
+not actual service access. A behavioral failure may retry once, using up to two
+CLI calls per selected case. No model is pinned.
+
 ## Delivery and configuration
 
 See [operations](docs/OPERATIONS.md) for Azure OIDC/GitHub environment setup,
 infrastructure previews, immutable image publication, promotion, and rollback.
-Cloud deployment is **manual and approval-gated**, not triggered by checkout or
-a push. Configure GitHub environment protections before enabling workflows.
+Cloud provisioning is manual. Once explicitly enabled, successful main CI builds
+and deploys test automatically; protected version tags promote the same image to
+staging and production. Configure GitHub environment protections and OIDC before
+setting `ENABLE_TEST_DEPLOYMENT=true`. Checkout alone never provisions resources.
 
 `infrastructure\main.bicep` defines the registry, telemetry, and isolated ring
 foundations. `infrastructure\app.bicep` deploys an immutable image with managed
