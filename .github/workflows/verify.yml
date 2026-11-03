@@ -20,7 +20,7 @@ jobs:
       - run: dotnet restore backend/PatrollerAudit.slnx --locked-mode
       - run: dotnet format backend/PatrollerAudit.slnx --verify-no-changes --no-restore
       - run: dotnet test backend/PatrollerAudit.slnx -c Release --no-restore --logger trx --results-directory artifacts/backend
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-results
@@ -34,7 +34,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: node --test scripts/tests/*.test.mjs

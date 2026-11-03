@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_sha }}
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -69,7 +69,7 @@ jobs:
           printf '%s' "$token" | docker login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
       - uses: docker/setup-buildx-action@v3
         if: steps.existing.outputs.digest == ''
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         if: steps.existing.outputs.digest == ''
         id: build
         with:
