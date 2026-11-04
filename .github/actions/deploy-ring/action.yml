@@ -36,7 +36,6 @@ runs:
         IMAGE_DIGEST: ${{ inputs.image_digest }}
         SOURCE_REF: ${{ github.ref }}
         REVISION_SUFFIX: r${{ github.run_id }}-${{ github.run_attempt }}
-        FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
       run: node scripts/deployment.mjs
     - uses: actions/upload-artifact@v4
       if: always()
