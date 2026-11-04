@@ -20,7 +20,7 @@ export async function smoke(baseUrl, { request = fetch, allowLocal = false } = {
   await read('/health');
   await read('/api/health');
   const html = await (await read('/')).text();
-  const brand = /<title>(PatrolNotes|Patroller Audit)<\/title>/.exec(html)?.[1];
+  const brand = /<title>(PatrolOps|Patroller Audit)<\/title>/.exec(html)?.[1];
   if (!brand) throw new Error('Application shell is missing.');
   const asset = /src="(\/assets\/[^"]+\.js)"/.exec(html)?.[1];
   if (!asset) throw new Error('Packaged application JavaScript is missing.');

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { smoke } from '../smoke.mjs';
 
 function requestFor({ readiness = 200, asset = true, unknown = 404,
-  brand = 'PatrolNotes', assetBrand = brand } = {}) {
+  brand = 'PatrolOps', assetBrand = brand } = {}) {
   return async url => {
     const path = url.pathname;
     if (path === '/') return new Response(`<title>${brand}</title><script src="/assets/app.js"></script>`);

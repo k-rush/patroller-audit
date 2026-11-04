@@ -9,13 +9,13 @@ foreach ($path in @('/health', '/api/health')) {
   if ($response.StatusCode -ne 200) { throw "$path is unhealthy." }
 }
 $page = Invoke-WebRequest $baseUrl -TimeoutSec 15
-if ($page.StatusCode -ne 200 -or $page.Content -notmatch '<title>PatrolNotes</title>') {
+if ($page.StatusCode -ne 200 -or $page.Content -notmatch '<title>PatrolOps</title>') {
   throw 'Packaged application shell was not served.'
 }
 $scriptPath = [regex]::Match($page.Content, 'src="(/assets/[^"]+\.js)"').Groups[1].Value
 if (-not $scriptPath) { throw 'Packaged SPA entry point was not found.' }
 $script = Invoke-WebRequest "$baseUrl$scriptPath" -TimeoutSec 15
-if ($script.StatusCode -ne 200 -or $script.Content -notmatch 'PatrolNotes') {
+if ($script.StatusCode -ne 200 -or $script.Content -notmatch 'PatrolOps') {
   throw 'Packaged SPA JavaScript was not served anonymously.'
 }
 $unknown = Invoke-WebRequest "$baseUrl/api/not-a-feature" -SkipHttpErrorCheck -TimeoutSec 15
