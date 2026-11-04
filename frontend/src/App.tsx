@@ -49,7 +49,7 @@ export default function App() {
   if (user && auth) return <CommandCenter key={user.uid} user={user} onSignOut={() => signOut(auth)} />;
   return <main className="login">
     <div className="brand-symbol" aria-hidden="true">/▲</div>
-    <p className="eyebrow">Patroller Audit / Proof of concept</p>
+    <p className="eyebrow">PatrolOps / Proof of concept</p>
     <h1>Dispatch command center</h1>
     <p className="muted">The Summit at Snoqualmie · Summit West</p>
     <form onSubmit={login}>
@@ -131,7 +131,7 @@ export function CommandCenter({ user, onSignOut }: { user: User; onSignOut: () =
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <a className="brand" href="#main"><span className="brand-symbol" aria-hidden="true">/▲</span><span>Patroller<br /><strong>Audit</strong></span></a>
+      <a className="brand" href="#main"><span className="brand-symbol" aria-hidden="true">/▲</span><span><strong>PatrolOps</strong></span></a>
       <div className="resort-label"><span className="eyebrow">Command center</span><strong>Summit West</strong><span>Snoqualmie Pass, WA</span></div>
       <nav aria-label="Main views">
         <button aria-current={view === 'map' ? 'page' : undefined} onClick={() => setView('map')}><span aria-hidden="true">⌖</span>Dispatch map</button>

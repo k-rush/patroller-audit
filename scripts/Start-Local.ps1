@@ -11,7 +11,7 @@ for ($attempt = 0; $attempt -lt 90; $attempt++) {
   try {
     $ready = Invoke-WebRequest "http://127.0.0.1:$Port/api/health" -TimeoutSec 10
     if ($ready.StatusCode -eq 200) {
-      Write-Host "Patroller Audit: http://127.0.0.1:$Port"
+      Write-Host "PatrolOps: http://127.0.0.1:$Port"
       return
     }
   } catch { }

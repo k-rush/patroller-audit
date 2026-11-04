@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { smoke } from '../smoke.mjs';
 
-function requestFor({ readiness = 200, asset = true, unknown = 404 } = {}) {
+function requestFor({ readiness = 200, asset = true, unknown = 404,
+  brand = 'PatrolOps', assetBrand = brand } = {}) {
   return async url => {
     const path = url.pathname;
-    if (path === '/') return new Response('<title>Patroller Audit</title><script src="/assets/app.js"></script>');
-    if (path === '/assets/app.js') return new Response(asset ? 'Patroller Audit' : '', { status: asset ? 200 : 404 });
+    if (path === '/') return new Response(`<title>${brand}</title><script src="/assets/app.js"></script>`);
+    if (path === '/assets/app.js') return new Response(asset ? assetBrand : '', { status: asset ? 200 : 404 });
     if (path === '/api/health') return new Response('', { status: readiness });
     if (path === '/api/not-a-feature') return new Response('', { status: unknown });
     return new Response('Healthy');
@@ -16,6 +17,14 @@ function requestFor({ readiness = 200, asset = true, unknown = 404 } = {}) {
 test('read-only smoke checks the packaged app and distinguishes unknown API routes', async () => {
   await smoke('https://app.example.com', { request: requestFor() });
   await assert.rejects(smoke('https://app.example.com', { request: requestFor({ unknown: 200 }) }));
+});
+
+test('retained pre-rebrand revisions remain eligible for rollback, but mismatched assets fail', async () => {
+  await smoke('https://app.example.com', { request: requestFor({ brand: 'Patroller Audit' }) });
+  await assert.rejects(smoke('https://app.example.com', {
+    request: requestFor({ assetBrand: 'Patroller Audit' }),
+  }));
+  await assert.rejects(smoke('https://app.example.com', { request: requestFor({ brand: 'Other app' }) }));
 });
 
 test('liveness alone cannot pass when storage readiness or packaged JavaScript fails', async () => {

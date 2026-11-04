@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { User } from 'firebase/auth';
 import { afterEach, expect, test, vi } from 'vitest';
-import { CommandCenter } from './App';
+import App, { CommandCenter } from './App';
 import type { Incident } from './dispatch';
 
 vi.mock('./DispatchMap', () => ({
@@ -19,11 +19,19 @@ const incident: Incident = { id: '550e8400-e29b-41d4-a716-446655440000', resortI
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
 afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear(); });
 
+test('the sign-in screen uses the PatrolOps brand', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json({}, 503)));
+  render(<App />);
+  expect(screen.getByText('PatrolOps / Proof of concept')).toBeVisible();
+  await screen.findByRole('alert');
+});
+
 test('a saved map click opens Pacific-time details; close retains its reopenable marker', async () => {
   const fetch = vi.fn().mockResolvedValueOnce(json({ items: [], cursor: null }))
     .mockResolvedValueOnce(json(incident, 201));
   vi.stubGlobal('fetch', fetch);
   render(<CommandCenter user={user} onSignOut={async () => {}} />);
+  expect(screen.getByRole('link', { name: 'PatrolOps' })).toHaveAttribute('href', '#main');
   const click = screen.getByRole('button', { name: 'Test map click' });
   await waitFor(() => expect(click).toBeEnabled());
   fireEvent.click(click);

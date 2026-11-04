@@ -109,11 +109,13 @@ Before running delivery workflows:
    Workflow `environment:` declarations alone do **not** configure these rules.
 4. Configure Azure service principals with GitHub OIDC federation using the exact
    subject prefix returned by
-   `gh api repos/k-rush/patroller-audit/actions/oidc/customization/sub`.
+   `gh api repos/k-rush/patrolops/actions/oidc/customization/sub`.
    This repository uses immutable subjects:
    `repo:<owner>@<owner-id>/<repo>@<repo-id>:environment:<environment>`.
    Append `:environment:<environment>` to `sub_claim_prefix`; do not substitute
-   the legacy name-only subject. Use issuer
+   the legacy name-only subject. A repository rename changes this prefix even
+   though its numeric ID is unchanged; reread the prefix and update each Azure
+   federated credential before resuming workflows. Use issuer
    `https://token.actions.githubusercontent.com` and audience
    `api://AzureADTokenExchange`. Monitoring needs no Azure identity. Grant the infrastructure
    principal only the resource-group rights needed to provision resources and
@@ -206,6 +208,11 @@ authenticated dispatch API/browser acceptance, but no hosted write synthetics,
 medical/compliance checks, or production persona acceptance.
 
 ## Rollback and diagnostics
+
+PatrolOps is the current UI brand; infrastructure identifiers are unchanged.
+Cloud smoke gates accept both PatrolOps and the legacy Patroller Audit brand
+with matching JavaScript so retained pre-rebrand revisions can still be recovered.
+Local packaged-app checks require PatrolOps.
 
 Normal deployment snapshots the previous serving revision before applying.
 Multiple-revision mode routes to the latest ready revision. Gates confirm the

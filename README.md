@@ -1,8 +1,13 @@
-# Patroller Audit
+# PatrolOps
 
 Ski patrol dispatch proof of concept using ASP.NET Core 10 and
 React/TypeScript, with dedicated Firebase projects, Cosmos accounts, and Azure
 Container Apps resources.
+
+PatrolOps is the app's name, and its repository is
+[k-rush/patrolops](https://github.com/k-rush/patrolops). .NET project, package,
+infrastructure, and data identifiers retain their existing `PatrollerAudit` /
+`patroller-audit` names.
 
 The dispatcher command center has a left navigation rail, a Summit West map,
 and a shared incident list. Clicking the map saves an incident in Cosmos DB and
